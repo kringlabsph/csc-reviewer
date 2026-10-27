@@ -243,6 +243,10 @@ body.in-exam::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-ar
 .remarks{font-family:var(--f-display);font-size:24px;font-weight:800;letter-spacing:.1em}
 .remarks.pass{color:var(--ok)} .remarks.fail{color:var(--bad)}
 .data-card .row{gap:8px}
+
+a.btn{display:inline-block;color:inherit}
+a.btn.primary{color:var(--paper)}
+@media (max-width:560px){.exam-head .ttl{display:none}.exam-head .btn{padding:6px 9px;font-size:13px}}
 </style>
 </head>
 <body>
@@ -270,6 +274,7 @@ body.in-exam::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-ar
 
   <!-- REVIEW -->
   <section id="v-review" class="view">
+    <div id="contBanner"></div>
     <p class="lede">Pick a part of the exam. Read the lesson for each topic, then practice it. Math, analytical and clerical topics have unlimited new questions.</p>
     <article id="lessonPanel" class="sheet lesson" hidden>
       <div class="lesson-head">
@@ -286,6 +291,7 @@ body.in-exam::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-ar
 
   <!-- PRACTICE -->
   <section id="v-practice" class="view" hidden>
+    <div id="pResume"></div>
     <div id="pSetup" class="sheet view">
       <div><h2 style="font-size:22px">Question &amp; answer practice</h2><p class="lede" style="margin-top:6px">Answer one item at a time. After each answer you see the correct answer, the explanation, and the formula for math items.</p></div>
       <div class="grid-f">
@@ -324,7 +330,7 @@ body.in-exam::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-ar
 
   <footer>
     <span>Free practice reviewer. Not affiliated with or endorsed by the Civil Service Commission.</span>
-    <span>Your progress is saved in this browser and stays after you close the page. Download a backup from My Progress to move it to another device.</span>
+    <span>Your progress, unfinished practice sets and mock exams are saved in this browser, so you can close the page and continue later. Download a backup from My Progress to move it to another device.</span>
   </footer>
 </div>
 
@@ -1591,13 +1597,15 @@ const VIEWS=["review","practice","mock","progress"];
 function route(){const v=VIEWS.includes(location.hash.slice(1))?location.hash.slice(1):"review";
   VIEWS.forEach(x=>{$("v-"+x).hidden=x!==v});
   document.querySelectorAll("nav.tabs a").forEach(a=>a.setAttribute("aria-current",a.dataset.v===v?"page":"false"));
-  if(v==="progress")renderProgress();if(v==="review")renderReview();if(v==="mock")showMockHome();}
+  if(v==="progress")renderProgress();if(v==="review")renderReview();if(v==="mock")showMockHome();if(v==="practice")showPracticeHome();}
 window.addEventListener("hashchange",route);
 
 /* ---------- Review ---------- */
 function topicStatus(id){const s=stats[id];if(!s||!s.t)return '<span class="pill none">Not practiced</span>';const p=pct(s.r,s.t);return `<span class="pill ${tone(p)}">${p}%</span>`}
 function firstLine(id){const L=(window.LESSONS||{})[id]||"";const m=L.split("\n").find(l=>l.trim()&&!l.startsWith("#"));return m?m.replace(/\*\*/g,"").replace(/\*/g,""):""}
 function renderReview(){
+  const ex=LS.get("exam",null),pr=LS.get("practice",null);
+  $("contBanner").innerHTML=(ex&&!ex.done)||pr?`<div class="notice"><strong>Continue where you left off.</strong> <span class="row" style="margin-top:8px">${ex&&!ex.done?`<a class="btn primary" href="#mock" style="text-decoration:none">Resume mock exam (${ex.answers.filter(a=>a!==null).length}/${ex.items.length})</a>`:""}${pr?`<a class="btn" href="#practice" style="text-decoration:none">Resume practice set (${pr.answers.filter(a=>a!==undefined&&a!==null).length}/${pr.items.length})</a>`:""}</span></div>`:"";
   $("reviewList").innerHTML=secsFor(level).map(sk=>{const s=SECTIONS[sk];
     return `<section><div class="sec-head"><h2>${esc(s.name)}</h2><span class="eyebrow">${Math.round(MIX[level][sk]*100)}% of mock items</span></div>
     <div class="topics">${s.topics.map(t=>`<div class="topic"><div class="th"><h3>${esc(t.name)}</h3><span class="pill ${t.lang}">${t.lang==="fil"?"Filipino":"English"}</span></div>
@@ -1644,7 +1652,7 @@ $("pStart").onclick=()=>{
   const items=draw(ids,n);
   $("pStatus").textContent=items.length<n?`This topic has ${items.length} items, so the set is shorter.`:"";
   if(!items.length)return;
-  P={items,idx:0,answers:[]};$("pSetup").hidden=true;$("pSession").hidden=false;renderPractice();
+  P={items,idx:0,answers:[],level,label:(top==="all"?SECTIONS[sec].name:TOPIC[top].name)};savePractice();$("pResume").innerHTML="";$("pSetup").hidden=true;$("pSession").hidden=false;renderPractice();
 };
 function qCard(item,{num,total,chosen,reveal}){
   const t=TOPIC[item.topic];
@@ -1655,9 +1663,16 @@ function qCard(item,{num,total,chosen,reveal}){
   ${item.passage?`<div class="passage${item.table?" tbl":""}">${esc(item.passage)}</div>`:""}
   <p class="q-text">${esc(item.q)}</p><div class="choices">${ch}</div>${reveal?explainHTML(item,chosen===item.answer):""}`;
 }
+function savePractice(){if(P&&P.idx<P.items.length)LS.set("practice",P);else LS.del("practice")}
+function showPracticeHome(){
+  if(P&&P.idx<P.items.length&&!$("pSession").hidden)return;
+  const sv=LS.get("practice",null);
+  $("pResume").innerHTML=sv?`<div class="notice"><strong>You have an unfinished practice set.</strong> ${esc(sv.label||"Practice")} · ${sv.answers.filter(a=>a!==undefined&&a!==null).length} of ${sv.items.length} answered. <span class="row" style="margin-top:8px"><button class="btn primary" type="button" id="pRes">Continue where I left off</button><button class="btn ghost" type="button" id="pDiscard">Discard it</button></span></div>`:"";
+  if(sv){$("pRes").onclick=()=>{P=sv;if(P.level&&P.level!==level)setLevel(P.level);$("pResume").innerHTML="";$("pSetup").hidden=true;$("pSession").hidden=false;renderPractice()};$("pDiscard").onclick=()=>{LS.del("practice");showPracticeHome()}}
+}
 function renderPractice(){
   const el=$("pSession");
-  if(P.idx>=P.items.length){
+  if(P.idx>=P.items.length){LS.del("practice");
     const r=P.answers.filter((a,i)=>a===P.items[i].answer).length,t=P.items.length,p=pct(r,t);
     const wrong=P.items.map((it,i)=>({it,a:P.answers[i]})).filter(x=>x.a!==x.it.answer);
     el.innerHTML=`<div class="sheet view"><div><p class="eyebrow">Set complete</p><div class="row" style="align-items:baseline;margin-top:6px"><span class="score">${r}/${t}</span><span class="pill ${tone(p)}">${p}%${p>=80?" · passing level":""}</span></div></div>
@@ -1669,9 +1684,9 @@ function renderPractice(){
   }
   const it=P.items[P.idx],ch=P.answers[P.idx],rev=ch!==undefined;
   el.innerHTML=`<div class="sheet">${qCard(it,{num:P.idx+1,total:P.items.length,chosen:ch,reveal:rev})}
-  <div class="row" style="margin-top:16px;justify-content:space-between"><button class="btn ghost" type="button" id="pQuit">End set</button>${rev?`<button class="btn primary" type="button" id="pNext">${P.idx+1<P.items.length?"Next item":"See results"}</button>`:""}</div></div>`;
-  el.querySelectorAll("[data-choice]").forEach(b=>b.onclick=()=>{const c=+b.dataset.choice;P.answers[P.idx]=c;record(it,c);renderPractice()});
-  if(rev)$("pNext").onclick=()=>{P.idx++;renderPractice();el.scrollIntoView({block:"start"})};
+  <div class="row" style="margin-top:16px;justify-content:space-between"><span class="row"><button class="btn ghost" type="button" id="pQuit">End set</button><span class="empty">Your place is saved automatically.</span></span>${rev?`<button class="btn primary" type="button" id="pNext">${P.idx+1<P.items.length?"Next item":"See results"}</button>`:""}</div></div>`;
+  el.querySelectorAll("[data-choice]").forEach(b=>b.onclick=()=>{const c=+b.dataset.choice;P.answers[P.idx]=c;record(it,c);savePractice();renderPractice()});
+  if(rev)$("pNext").onclick=()=>{P.idx++;savePractice();renderPractice();el.scrollIntoView({block:"start"})};
   $("pQuit").onclick=()=>{P.items=P.items.slice(0,P.answers.length);P.idx=P.items.length;renderPractice()};
 }
 function reviewItem(it,a,num){
@@ -1698,8 +1713,8 @@ function split(total,lv){const e=Object.entries(MIX[lv]);let used=0;return e.map
 function showMockHome(){
   if(M&&!M.done&&!$("mExam").hidden)return;
   const saved=LS.get("exam",null);
-  if(saved&&!saved.done&&saved.timer&&Date.now()>=saved.endsAt){M=saved;submitMock(true,true);return}
-  $("mResume").innerHTML=saved&&!saved.done?`<div class="notice"><strong>You have an exam in progress.</strong> ${LEVEL_NAME[saved.level]} · ${saved.items.length} items · ${saved.answers.filter(a=>a!==null).length} answered${saved.timer?` · ${fmtT(saved.endsAt-Date.now())} left`:""}. <span class="row" style="margin-top:8px"><button class="btn primary" type="button" id="mRes">Resume exam</button><button class="btn ghost" type="button" id="mDiscard">Discard it</button></span></div>`:"";
+  if(saved&&!saved.done&&saved.timer&&leftOf(saved)<=0){M=saved;submitMock(true,true);return}
+  $("mResume").innerHTML=saved&&!saved.done?`<div class="notice"><strong>You have an unfinished mock exam.</strong> ${LEVEL_NAME[saved.level]} · ${saved.items.length} items · ${saved.answers.filter(a=>a!==null).length} answered${saved.timer?` · ${fmtT(leftOf(saved))} left (timer paused)`:""}. <span class="row" style="margin-top:8px"><button class="btn primary" type="button" id="mRes">Resume exam</button><button class="btn ghost" type="button" id="mDiscard">Discard it</button></span></div>`:"";
   if(saved&&!saved.done){$("mRes").onclick=()=>{M=saved;startExam()};$("mDiscard").onclick=()=>{LS.del("exam");showMockHome()}}
   if($("mResult").hidden&&$("mCover").hidden){$("mSetup").hidden=false}
 }
@@ -1724,18 +1739,23 @@ function renderCover(){
       <li>Read each item carefully and choose the best answer.</li>
       <li>Shade the circle of your answer on the answer sheet. Shade only one circle per item. You can change an answer until you submit.</li>
       <li>Wrong answers are not deducted, so answer every item.</li>
-      ${M.timer?"<li>The timer keeps running even if you close this page. When time is up, your answer sheet is submitted automatically.</li>":"<li>This is an untimed practice. Your answers are saved if you close the page.</li>"}
+      <li>Your answers are saved as you go. If you need to stop, click <strong>Save &amp; exit</strong> or simply close the page${M.timer?", and the timer pauses until you come back":""}. Open the site again and click <strong>Resume</strong> to continue.</li>${M.timer?"<li>When time is up, your answer sheet is submitted automatically.</li>":""}
       <li>Answers and explanations are shown only after you submit.</li></ol></div>
     <table><tbody>${parts.map((p,i)=>`<tr><td>Part ${ROMAN[i]} · ${esc(SECTIONS[p.sec].name)}</td><td>Items ${p.from+1}–${p.to+1}</td></tr>`).join("")}</tbody></table>
     <div class="row" style="justify-content:center"><button class="btn ghost" type="button" id="cBack">Back</button><button class="btn primary" type="button" id="cBegin">Begin examination</button></div>
   </div>`;
   $("cBack").onclick=()=>{$("mCover").hidden=true;$("mSetup").hidden=false;M=null};
-  $("cBegin").onclick=()=>{M.started=Date.now();M.endsAt=M.timer?Date.now()+M.mins*60000:0;LS.set("exam",M);startExam()};
+  $("cBegin").onclick=()=>{M.started=Date.now();M.left=M.timer?M.mins*60000:0;LS.set("exam",M);startExam()};
   window.scrollTo(0,0);
 }
 function fmtT(ms){const s=Math.max(0,Math.ceil(ms/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return (h?h+":"+String(m).padStart(2,"0"):m)+":"+String(x).padStart(2,"0")}
+function leftOf(e){return e.left!=null?e.left:(e.endsAt||0)-Date.now()}
+function examActive(){return M&&!M.done&&!$("mExam").hidden}
+function pauseExam(){if(!examActive())return;if(M.timer)M.left=Math.max(0,M.endsAt-Date.now());LS.set("exam",M)}
+document.addEventListener("visibilitychange",()=>{if(!examActive()||!M.timer)return;if(document.hidden)pauseExam();else M.endsAt=Date.now()+M.left});
+window.addEventListener("pagehide",pauseExam);
 function startExam(){
-  warned={};
+  warned={};if(M.timer){M.left=leftOf(M);M.endsAt=Date.now()+M.left}
   $("mSetup").hidden=true;$("mCover").hidden=true;$("mResult").hidden=true;$("mExam").hidden=false;document.body.classList.add("in-exam");
   const parts=partsOf(M.items);let html="",pi=0;
   M.items.forEach((it,i)=>{
@@ -1745,7 +1765,7 @@ function startExam(){
       html+=`<div class="bq"><p class="bpass">${j>i?`Items ${i+1}–${j+1}`:`Item ${i+1}`}: ${TOPIC[it.topic].lang==="fil"?"Basahin ang talata at sagutin ang mga tanong.":it.table?"Refer to the table below.":"Read the passage, then answer."}</p><div class="passage${it.table?" tbl":""}" style="grid-column:1/-1">${esc(it.passage)}</div></div>`}
     html+=`<div class="bq" id="bq${i}"><span class="n">${i+1}.</span><div><p class="qt">${esc(it.q)}</p></div><div class="opts">${it.choices.map((c,k)=>`<button class="opt${M.answers[i]===k?" sel":""}" type="button" data-i="${i}" data-k="${k}"><span class="bub">${LET[k]}</span><span class="ct">${esc(c)}</span></button>`).join("")}</div></div>`;
   });
-  $("mExam").innerHTML=`<div class="exam-head"><span class="ttl">CSE ${LEVEL_NAME[M.level]} · Practice</span><span class="cnt" id="eCnt"></span>${M.timer?`<span class="timer" id="eTime"></span>`:`<span style="margin-left:auto"></span>`}<button class="btn" type="button" id="asToggle">Answer sheet</button><button class="btn primary" type="button" id="eSubmit">Submit</button></div>
+  $("mExam").innerHTML=`<div class="exam-head"><span class="ttl">CSE ${LEVEL_NAME[M.level]} · Practice</span><span class="cnt" id="eCnt"></span>${M.timer?`<span class="timer" id="eTime"></span>`:`<span style="margin-left:auto"></span>`}<button class="btn" type="button" id="asToggle">Answer sheet</button><button class="btn" type="button" id="eExit">Save &amp; exit</button><button class="btn primary" type="button" id="eSubmit">Submit</button></div>
   <div id="eWarn"></div>
   <div class="exam-grid"><div class="booklet" id="booklet">${html}<p class="empty" style="text-align:center">— End of test booklet —</p></div>
   <aside class="sheet-panel" id="asPanel"><div class="row" style="justify-content:space-between"><h4>Answer sheet</h4><button class="btn ghost as-close" type="button" id="asClose">Close</button></div><div class="as-grid" style="--rows:${Math.ceil(M.items.length/2)}">${M.items.map((it,i)=>`<div class="as-row" id="as${i}"><a href="#bq${i}" data-jump="${i}">${i+1}</a>${LET.map((L,k)=>`<button type="button" data-i="${i}" data-k="${k}" class="${M.answers[i]===k?"on":""}" aria-label="Item ${i+1} ${L}">${L}</button>`).join("")}</div>`).join("")}</div></aside></div>`;
@@ -1757,11 +1777,12 @@ function startExam(){
     const a=e.target.closest("a[data-jump]");if(a){e.preventDefault();$("bq"+a.dataset.jump).scrollIntoView({behavior:"smooth",block:"start"});if(innerWidth<900)$("asPanel").classList.remove("open")}});
   $("asToggle").onclick=()=>$("asPanel").classList.toggle("open");$("asClose").onclick=()=>$("asPanel").classList.remove("open");
   $("eSubmit").onclick=confirmSubmit;
+  $("eExit").onclick=()=>{pauseExam();clearInterval(mTick);document.body.classList.remove("in-exam");$("mExam").hidden=true;M=null;showMockHome();$("mSetup").hidden=false;window.scrollTo(0,0)};
   updCount();clearInterval(mTick);if(M.timer){tick();mTick=setInterval(tick,1000)}
   window.scrollTo(0,0);
 }
 function updCount(){const n=M.answers.filter(a=>a!==null).length;$("eCnt").textContent=`${n}/${M.items.length} answered`}
-function tick(){if(!M||M.done)return;const left=M.endsAt-Date.now(),t=$("eTime");if(t){t.textContent=fmtT(left);t.classList.toggle("low",left<300000)}
+let tc=0;function tick(){if(!M||M.done)return;const left=M.endsAt-Date.now(),t=$("eTime");M.left=Math.max(0,left);if(++tc%5===0)LS.set("exam",M);if(t){t.textContent=fmtT(left);t.classList.toggle("low",left<300000)}
   for(const [mins,msg] of [[30,"30 minutes left."],[5,"5 minutes left. Shade any blank items now."]])if(left<=mins*60000&&left>0&&!warned[mins]&&M.mins>mins){warned[mins]=1;$("eWarn").innerHTML=`<div class="warnbar"><strong>${msg}</strong></div>`}
   if(left<=0){clearInterval(mTick);submitMock(true)}}
 function confirmSubmit(){const blank=M.answers.filter(a=>a===null).length;
@@ -1773,11 +1794,11 @@ function submitMock(timeUp,whileAway){
   M.items.forEach((it,i)=>{const a=M.answers[i],ok=a===it.answer;if(ok)r++;const s=bySec[it.sec]||(bySec[it.sec]={r:0,t:0});s.t++;if(ok)s.r++;record(it,a,false)});
   const t=M.items.length,rating=t?r/t*100:0;
   M.done=true;LS.del("exam");
-  history=[{at:Date.now(),level:M.level,r,t,p:Math.round(rating),rating:+rating.toFixed(2),secs:bySec,fmt:M.fname,mins:Math.max(1,Math.round(((M.timer?Math.min(Date.now(),M.endsAt):Date.now())-M.started)/60000))}].concat(history).slice(0,40);
+  history=[{at:Date.now(),level:M.level,r,t,p:Math.round(rating),rating:+rating.toFixed(2),secs:bySec,fmt:M.fname,mins:Math.max(1,Math.round(M.timer?(M.mins*60000-Math.max(0,leftOf(M)))/60000:(Date.now()-M.started)/60000))}].concat(history).slice(0,40);
   saveProgress();
   const pass=rating>=80,parts=partsOf(M.items);
   $("mSetup").hidden=true;$("mCover").hidden=true;$("mExam").hidden=true;$("mResult").hidden=false;
-  $("mResult").innerHTML=`${timeUp?`<div class="notice"><strong>${whileAway?"Time ran out while you were away.":"Time's up."}</strong> Your answer sheet was submitted automatically.</div>`:""}
+  $("mResult").innerHTML=`${timeUp?`<div class="notice"><strong>Time's up.</strong> Your answer sheet was submitted automatically.</div>`:""}
   <div class="ror">
     <p class="rp">Practice Test · Not an official result</p>
     <h2>Report of Rating</h2>
@@ -1844,16 +1865,16 @@ function renderProgress(){
   </div>
   <div class="sheet view"><details><summary>Items you missed (${lvMissed.length})</summary><div class="view" style="margin-top:12px;gap:14px">${lvMissed.length?lvMissed.map(m=>reviewItem(m,m.chosen)).join(""):'<p class="empty">Nothing here yet.</p>'}</div></details></div>
   <div class="sheet view data-card"><h2 style="font-size:20px">Your saved data</h2>
-    <p class="lede">Your scores, mock history and any exam in progress are saved in this browser automatically, and they stay after you close the page. They are lost only if you clear your browser data, use a private or incognito window, or switch to another device or browser. To keep a copy or move it, download a backup file and restore it on the other device.</p>
+    <p class="lede">Your scores, mock history, and any unfinished practice set or mock exam are saved in this browser automatically, and they stay after you close the page. They are lost only if you clear your browser data, use a private or incognito window, or switch to another device or browser. To keep a copy or move it, download a backup file and restore it on the other device.</p>
     <div class="row"><button class="btn primary" type="button" id="bkDown">Download backup</button><label class="btn" for="bkFile" style="display:inline-block">Restore from backup</label><input id="bkFile" type="file" accept=".json,application/json" hidden><span id="bkMsg" class="empty"></span></div>
     <div class="row" id="resetRow"><button class="btn ghost" type="button" id="resetBtn">Reset my progress</button></div>
   </div>`;
   $("progBody").querySelectorAll("[data-practice]").forEach(b=>b.onclick=()=>goPractice(b.dataset.practice));
   $("progBody").querySelectorAll("[data-lesson]").forEach(b=>b.onclick=()=>{location.hash="review";setTimeout(()=>openLesson(b.dataset.lesson),0)});
-  $("bkDown").onclick=()=>{const data={app:"csc-reviewer",version:2,saved:new Date().toISOString(),level,stats,history,missed,seen,name:LS.get("name",""),exam:LS.get("exam",null)};
+  $("bkDown").onclick=()=>{const data={app:"csc-reviewer",version:2,saved:new Date().toISOString(),level,stats,history,missed,seen,name:LS.get("name",""),exam:LS.get("exam",null),practice:LS.get("practice",null)};
     const blob=new Blob([JSON.stringify(data)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`csc-reviewer-backup-${new Date().toISOString().slice(0,10)}.json`;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);$("bkMsg").textContent="Backup downloaded."};
   $("bkFile").onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const d=JSON.parse(rd.result);if(d.app!=="csc-reviewer")throw 0;
-      stats=d.stats||{};history=d.history||[];missed=d.missed||[];seen=d.seen||{};saveProgress();if(d.name)LS.set("name",d.name);if(d.exam&&!d.exam.done)LS.set("exam",d.exam);if(d.level)level=d.level;
+      stats=d.stats||{};history=d.history||[];missed=d.missed||[];seen=d.seen||{};saveProgress();if(d.name)LS.set("name",d.name);if(d.exam&&!d.exam.done)LS.set("exam",d.exam);if(d.practice)LS.set("practice",d.practice);if(d.level)level=d.level;
       setLevel(level);$("bkMsg").textContent="Progress restored."}catch(err){$("bkMsg").textContent="That file isn't a CSC Reviewer backup. Choose the .json file you downloaded."}};rd.readAsText(f)};
   $("resetBtn").onclick=()=>{$("resetRow").innerHTML=`<div class="confirm"><span>Clear all scores, mock history and missed items on this device?</span><button class="btn primary" type="button" id="rYes">Clear</button><button class="btn ghost" type="button" id="rNo">Cancel</button></div>`;
     $("rYes").onclick=()=>{stats={};history=[];missed=[];seen={};saveProgress();renderProgress();renderReview()};$("rNo").onclick=renderProgress};
@@ -1863,7 +1884,7 @@ function renderProgress(){
 $("bankCount").textContent=`${BANK.length} built-in items + unlimited generated`;
 setLevel(level);
 route();
-if(LS.get("exam",null)&&!location.hash)location.hash="mock";
+
 </script>
 </body>
 </html>
