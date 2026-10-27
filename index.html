@@ -1595,7 +1595,7 @@ function route(){const v=VIEWS.includes(location.hash.slice(1))?location.hash.sl
 window.addEventListener("hashchange",route);
 
 /* ---------- Review ---------- */
-function topicStatus(id){const s=stats[id];if(!s||!s.t)return '<span class="pill none">Not yet</span>';const p=pct(s.r,s.t);return `<span class="pill ${tone(p)}">${p}%</span>`}
+function topicStatus(id){const s=stats[id];if(!s||!s.t)return '<span class="pill none">Not practiced</span>';const p=pct(s.r,s.t);return `<span class="pill ${tone(p)}">${p}%</span>`}
 function firstLine(id){const L=(window.LESSONS||{})[id]||"";const m=L.split("\n").find(l=>l.trim()&&!l.startsWith("#"));return m?m.replace(/\*\*/g,"").replace(/\*/g,""):""}
 function renderReview(){
   $("reviewList").innerHTML=secsFor(level).map(sk=>{const s=SECTIONS[sk];
